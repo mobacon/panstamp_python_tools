@@ -51,10 +51,12 @@ def signal_handler(signal, frame):
 
 
 if __name__ == '__main__':
-    
+
     # Parse arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', help="Serial port connected to modem")
+    parser.add_argument('--portfix', help="Specifies what port parameter is",
+                        default=0)
     parser.add_argument('--speed', help="Serial baud rate (bps)")
     parser.add_argument('--channel', help="RF channel")
     parser.add_argument('--netid', help="Network ID")
@@ -65,7 +67,7 @@ if __name__ == '__main__':
 
     direc = os.path.join(os.path.dirname(sys.argv[0]), "config")
     settings = os.path.join(direc, "settings.xml")
-    
+
     # General settings
     general_cfg = XmlSettings(settings)
     # Serial settings
@@ -77,6 +79,7 @@ if __name__ == '__main__':
     # Save serial parameters
     if opts.port is not None:
         serial_cfg.port = opts.port
+        serial_cfg.portfix = opts.portfix
         save_file = True
     if opts.speed is not None:
         serial_cfg.speed = SwapManager.str_to_int(opts.speed)
@@ -107,14 +110,14 @@ if __name__ == '__main__':
         if secu is not None:
             network_cfg.security = secu
             save_file = True
-        
+
     if save_file:
         network_cfg.save()
 
     # Catch possible SIGINT signals
     signal.signal(signal.SIGINT, signal_handler)
 
-    try:        
+    try:
         # SWAP manager
         swap_manager = SwapManager(settings)
     except SwapException as ex:
@@ -123,18 +126,18 @@ if __name__ == '__main__':
 
     while True:
         if swap_manager.server_started == True and swap_manager.prog_address is None:
-            
+
             # Launch Macro
-            if opts.macro is not None:        
+            if opts.macro is not None:
                 swap_manager.dispatch_macro(opts.macro)
                 opts.macro = None
-                
+
             cmd = raw_input(">> ")
-            
+
             command = []
             for item in cmd.split(" "):
                 command.append(item.strip())
-                
+
             swap_manager.dispatch_user_command(command)
 
     signal.pause()

@@ -1,5 +1,6 @@
 <?xml version="1.0"?>
 <serial>
 	<port>/dev/ttyUSB0</port>
+	<portfix>0</portfix>
 	<speed>38400</speed>
 </serial>

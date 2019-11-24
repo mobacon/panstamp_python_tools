@@ -3,22 +3,22 @@
 # SwapServer
 #
 # Copyright (c) 2011 panStamp <contact@panstamp.com>
-# 
+#
 # This file is part of the panStamp project.
-# 
+#
 # panStamp  is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Lesser General Public License as published by
 # the Free Software Foundation; either version 3 of the License, or
 # any later version.
-# 
+#
 # panStamp is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU Lesser General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU Lesser General Public License
 # along with panStamp; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301
 # USA
 #
 #########################################################################
@@ -56,27 +56,29 @@ class SwapServer(threading.Thread):
     # Max tries for any SWAP command
     _MAX_SWAP_COMMAND_TRIES = 3
 
-   
+
     def run(self):
         """
         Start SWAP server thread
-        """       
+        """
         try:
             # Network configuration settings
             self._xmlnetwork = XmlNetwork(self._xmlSettings.network_file)
             self.devaddress = self._xmlnetwork.devaddress
             self.security = self._xmlnetwork.security
             self.password = Password(self._xmlnetwork.password)
-            
+
             # Serial configuration settings
             self._xmlserial = XmlSerial(self._xmlSettings.serial_file)
-        
+
             # Create and start serial modem object
-            self.modem = SerialModem(self._xmlserial.port, self._xmlserial.speed, self.verbose)
+            self.modem = SerialModem(self._xmlserial.port,
+                                     self._xmlserial.portfix,
+                                     self._xmlserial.speed, self.verbose)
 
             # Declare receiving callback function
             self.modem.setRxCallback(self._ccPacketReceived)
-    
+
             # Set modem configuration from _xmlnetwork
             param_changed = False
             # Device address
@@ -100,46 +102,46 @@ class SwapServer(threading.Thread):
                         raise SwapException("Unable to set modem's frequency channel to " + self._xmlnetwork.freq_channel)
                     else:
                         param_changed = True
-    
+
             # Return to data mode if necessary
             if param_changed == True:
                 self.modem.goToDataMode()
-                            
+
             self.is_running = True
-            
+
             # Notify parent about the start of the server
             self._eventHandler.swapServerStarted()
-                    
+
             # Discover motes in the current SWAP network
             self._discoverMotes()
         except SwapException as ex:
             threading.Thread.__init__(self)
             # Report error to SwapInterface
             self._eventHandler.swapServerError(ex)
-        
-        threading.Thread.__init__(self)        
-           
+
+        threading.Thread.__init__(self)
+
 
     def stop(self):
         """
         Stop SWAP server
         """
-        
+
         print "Stopping SWAP server..."
-        
+
         # Stop modem
         if self.modem is not None:
             self.modem.stop()
         self.is_running = False
-        
+
         # Save network data
         print "Saving network data..."
-        
+
         try:
             self.network.save()
         except SwapException:
             raise
-        
+
         threading.Thread.__init__(self)
 
 
@@ -150,21 +152,21 @@ class SwapServer(threading.Thread):
         # Clear network data
         self.network.read()
 
-        
+
     def _ccPacketReceived(self, ccPacket):
         """
         CcPacket received
-        
-        @param ccPacket: CcPacket received        
+
+        @param ccPacket: CcPacket received
         """
         try:
             # Convert CcPacket into SwapPacket
             swPacket = SwapPacket(ccPacket)
             # Notify event
-            self._eventHandler.swapPacketReceived(swPacket)  
+            self._eventHandler.swapPacketReceived(swPacket)
         except SwapException:
             return
-        
+
         # Check function code
         # STATUS packet received
         if swPacket.function == SwapFunction.STATUS:
@@ -228,15 +230,15 @@ class SwapServer(threading.Thread):
                         if mote.nonce != swPacket.nonce:
                             # Nonce missmatch. Transmit correct nonce
                             self.send_nonce()
-                            return               
+                            return
                     # Send command packet to target mote
                     self.setMoteRegister(mote, swPacket.regId, swPacket.value, sendack=True)
-                    
+
 
     def _checkMote(self, mote):
         """
         Check SWAP mote from against the current list
-        
+
         @param mote: to be searched in the list
         """
         # Add mote to the network
@@ -252,21 +254,21 @@ class SwapServer(threading.Thread):
                     for endp in reg.parameters:
                         if  self._eventHandler.newEndpointDetected is not None:
                             self._eventHandler.newEndpointDetected(endp)
-                       
+
         if self._poll_regular_regs:
             # Query all individual registers owned by this mote
             if mote.regular_registers is not None:
                 for reg in mote.regular_registers:
                     reg.sendSwapQuery()
-            
-            
+
+
     def _updateMoteAddress(self, oldAddr, newAddr):
         """
         Update new mote address in list
-        
+
         @param oldAddr: Old address
         @param newAddr: New address
-        
+
         @return True if the value changed. False otherwise
         """
         # Has the address really changed?
@@ -279,7 +281,7 @@ class SwapServer(threading.Thread):
             # Notify address change to event handler
             if self._eventHandler.moteAddressChanged is not None:
                 self._eventHandler.moteAddressChanged(mote)
-                
+
             return True
         return False
 
@@ -289,7 +291,7 @@ class SwapServer(threading.Thread):
         Update mote state in list
 
         @param packet: SWAP packet to extract the information from
-        
+
         @return True if the value changed. False otherwise
         """
         # New system state
@@ -304,21 +306,21 @@ class SwapServer(threading.Thread):
 
             # Update mote's state
             mote.update_state(state)
-            
+
             # Notify state change to event handler
             if self._eventHandler.moteStateChanged is not None:
                 self._eventHandler.moteStateChanged(mote)
 
             return True
         return False
-    
+
 
     def _updateMoteTxInterval(self, packet):
         """
         Update mote Tx interval in list
 
         @param packet: SWAP packet to extract the information from
-        
+
         @return True if the value changed. False otherwise
         """
         # New periodic Tx interval (in seconds)
@@ -333,11 +335,11 @@ class SwapServer(threading.Thread):
 
             # Update system state in the list
             mote.txinterval = interval
-            
+
             return True
         return False
-       
-        
+
+
     def _updateRegisterValue(self, packet):
         """
         Update register value in the list of motes
@@ -406,7 +408,7 @@ class SwapServer(threading.Thread):
         if (self._expectedAck is not None) and (status.function == SwapFunction.STATUS):
             if status.regAddress == self._expectedAck.regAddress:
                 if status.regId == self._expectedAck.regId:
-                    self._packetAcked = self._expectedAck.value.isEqual(status.value) 
+                    self._packetAcked = self._expectedAck.value.isEqual(status.value)
 
         # Check possible response to a precedent query
         self._valueReceived = None
@@ -417,19 +419,19 @@ class SwapServer(threading.Thread):
 
         # Update security option and nonce in list
         mote = self.network.get_mote(address=status.srcAddress)
-        
-        if mote is not None:       
+
+        if mote is not None:
             # Check nonce?
             if self._xmlnetwork.security & 0x01:
                 # Discard status packet in case of incorrect nonce
                 if mote.nonce > 0 and status.nonce != 1:
                     lower_limit = mote.nonce
                     upper_limit = mote.nonce + 5
-                    
-                    
+
+
                     if upper_limit > 0xFF:
                         upper_limit -= 0x100
-                                                
+
                     if not (lower_limit < status.nonce <= upper_limit):
                         if (lower_limit > upper_limit):
                             if not (lower_limit < status.nonce <= 0xFF):
@@ -437,10 +439,10 @@ class SwapServer(threading.Thread):
                                     raise SwapException("Mote " + str(mote.address) + ": anti-playback nonce missmatch. Possible attack!")
                         else:
                             raise SwapException("Mote " + str(mote.address) + ": anti-playback nonce missmatch. Possible attack!")
-                
+
             mote.security = status.security
             mote.nonce = status.nonce
-            
+
 
     def _discoverMotes(self):
         """
@@ -478,7 +480,7 @@ class SwapServer(threading.Thread):
             if self.nonce > 0xFF:
                 self.nonce = 0
             status.nonce = self.nonce
-            status.send(self)    
+            status.send(self)
 
 
     def send_nonce(self):
@@ -510,7 +512,7 @@ class SwapServer(threading.Thread):
         """
         # Send command multiple times if necessary
         for i in range(SwapServer._MAX_SWAP_COMMAND_TRIES):
-            # Send command            
+            # Send command
             ack = mote.cmdRegister(regid, value)
             # Wait for aknowledgement from mote
             if self._waitForAck(ack, SwapServer._MAX_WAITTIME_ACK):
@@ -532,7 +534,7 @@ class SwapServer(threading.Thread):
         """
         # Send command multiple times if necessary
         for i in range(SwapServer._MAX_SWAP_COMMAND_TRIES):
-            # Send command            
+            # Send command
             ack = endpoint.sendSwapCmd(value)
             # Wait for aknowledgement from mote
             if self._waitForAck(ack, SwapServer._MAX_WAITTIME_ACK):
@@ -544,10 +546,10 @@ class SwapServer(threading.Thread):
         """
         Query mote register, wait for response and return value
         Non re-entrant method!!
-        
+
         @param mote: Mote containing the register
         @param regId: Register ID
-        
+
         @return register value
         """
         # Queried register
@@ -570,20 +572,20 @@ class SwapServer(threading.Thread):
 
         @param ackpacket: SWAP status packet to expect as a valid ACK
         @param wait_time: Max waiting time in milliseconds
-        
+
         @return True if the ACK is received. False otherwise
         """
         self._packetAcked = False
         # Expected ACK packet (SWAP status)
         self._expectedAck = ackpacket
-        
+
         #loops = wait_time / 10
         start = time.time()
         while not self._packetAcked:
             time.sleep(0.1)
             if (time.time() - start)*1000 >= wait_time:
                 break
-            
+
         res = self._packetAcked
         self._expectedAck = None
         self._packetAcked = False
@@ -594,10 +596,10 @@ class SwapServer(threading.Thread):
         """
         Wait for ACK (SWAP status packet)
         Non re-entrant method!!
-        
+
         @param register: Expected register to be informed about
         @param waitTime: Max waiting time in milliseconds
-        
+
         @return True if the ACK is received. False otherwise
         """
         # Expected ACK packet (SWAP status)
@@ -619,7 +621,7 @@ class SwapServer(threading.Thread):
     def getNetId(self):
         """
         Get current network ID
-        
+
         @return Network ID
         """
         return self.modem.syncword
@@ -635,8 +637,8 @@ class SwapServer(threading.Thread):
         try:
             os.stat(local_dir)
         except:
-            os.mkdir(local_dir)              
-                
+            os.mkdir(local_dir)
+
         try:
           local_file = XmlSettings.device_localdir + os.sep + "devices.xml"
           remote_file = XmlSettings.device_remote + "/devices.xml"
@@ -648,7 +650,7 @@ class SwapServer(threading.Thread):
           print "Unable to download devices.xml from remote server"
 
         device_info = XmlDeviceDir()
-    
+
         # Create developer folders
         for developer in device_info.developers:
             developer_dir = local_dir + os.sep + developer.name
@@ -657,7 +659,7 @@ class SwapServer(threading.Thread):
                 os.stat(developer_dir)
             except:
                 os.mkdir(developer_dir)
-                
+
             try:
                 # Download device definition files for each developer folder
                 for device in developer.devices:
@@ -672,27 +674,27 @@ class SwapServer(threading.Thread):
 
             except Exception as e:
                 print "Unable to update Device Definition File " + device_name + ".xml"
-                    
+
         """
         local_tar = XmlSettings.device_localdir + ".tar"
-        
+
         try:
             remote = urllib2.urlopen(XmlSettings.device_remote)
             local = open(local_tar, 'wb')
             local.write(remote.read())
             local.close()
-            
+
             tar = tarfile.open(local_tar)
             direc = os.path.dirname(XmlSettings.device_localdir)
             tar.extractall(path=direc)
             tar.close()
-            
+
             os.remove(local_tar)
         except:
             print "Unable to update Device Definition Files"
         """
-        
-        
+
+
     def __init__(self, eventHandler, settings=None, start=True):
         """
         Class constructor
@@ -753,10 +755,10 @@ class SwapServer(threading.Thread):
 
         ## Tells us if the server is running
         self.is_running = False
-        
+
         ## Poll regular registers whenever a product code packet is received
         self._poll_regular_regs = False
-        
+
         # Start server
         if start:
             self.start()

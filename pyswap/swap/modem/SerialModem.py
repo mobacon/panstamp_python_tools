@@ -3,22 +3,22 @@
 # SerialModem
 #
 # Copyright (c) 2011 panStamp <contact@panstamp.com>
-# 
+#
 # This file is part of the panStamp project.
-# 
+#
 # panStamp  is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Lesser General Public License as published by
 # the Free Software Foundation; either version 3 of the License, or
 # any later version.
-# 
+#
 # panStamp is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU Lesser General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU Lesser General Public License
 # along with panStamp; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301
 # USA
 #
 #########################################################################
@@ -31,6 +31,7 @@ import time
 from SerialPort import SerialPort
 from CcPacket import CcPacket
 from swap.SwapException import SwapException
+from list_serial_port import resolve_portname
 
 class SerialModem:
     """
@@ -57,9 +58,9 @@ class SerialModem:
         """
         Serial packet received. This is a callback function called from
         the SerialPort object
-        
+
         @param buf: Serial packet received in String format
-        """        
+        """
         # If modem in command mode
         if self._sermode == SerialModem.Mode.COMMAND:
             self._atresponse = buf
@@ -82,28 +83,28 @@ class SerialModem:
     def setRxCallback(self, cbFunct):
         """
         Set callback reception function. Notify new CcPacket reception
-        
+
         @param cbFunct: Definition of custom Callback function for the reception of packets
         """
         self._ccpacket_received = cbFunct
-        
+
 
     def goToCommandMode(self):
         """
         Enter command mode (for AT commands)
-        
+
         @return True if the serial gateway does enter Command Mode. Return false otherwise
         """
         if self._sermode == SerialModem.Mode.COMMAND:
             return True
-        
+
         self._sermode = SerialModem.Mode.COMMAND
         response = self.runAtCommand("+++", 5000)
 
         if response is not None:
             if response[:2] == "OK":
                 return True
-        
+
         self._sermode = SerialModem.Mode.DATA
         return False
 
@@ -111,52 +112,52 @@ class SerialModem:
     def goToDataMode(self):
         """
         Enter data mode (for Rx/Tx operations)
-        
+
         @return True if the serial gateway does enter Data Mode. Return false otherwise
         """
         if self._sermode == SerialModem.Mode.DATA:
             return True
-        
+
         response = self.runAtCommand("ATO\r")
-        
+
         if response is not None:
             if response[0:2] == "OK":
                 self._sermode = SerialModem.Mode.DATA;
                 return True;
-        
+
         return False;
 
-    
+
     def reset(self):
         """
         Reset serial gateway
-        
+
         @return True if the serial gateway is successfully restarted
         """
         # Switch to command mode if necessary
         if self._sermode == SerialModem.Mode.DATA:
             self.goToCommandMode()
-        
+
         # Default state after reset
         self._sermode = SerialModem.Mode.DATA
         # Run AT command
         response = self.runAtCommand("ATZ\r")
         if response is None:
             return False
-        
+
         if "ready" in response or response[0:2] == "OK":
             return True
-        
+
         return False
 
 
     def runAtCommand(self, cmd="AT\r", timeout=1000):
         """
         Run AT command on the serial gateway
-        
+
         @param cmd: AT command to be run
         @param timeout: Period after which the function should timeout
-        
+
         @return Response received from gateway or None in case of lack of response (timeout)
         """
         self.__atresponse_received = False
@@ -168,7 +169,7 @@ class SerialModem:
         self._atresponse = "("
         # Send serial packet
         self._serport.send(cmd)
-        
+
         # Wait for response from modem
         while len(self._atresponse) == 0 or self._atresponse[0] == '(':
             if not self._waitForResponse(timeout):
@@ -180,17 +181,17 @@ class SerialModem:
     def sendCcPacket(self, packet):
         """
         Send wireless CcPacket through the serial gateway
-        
+
         @param packet: CcPacket to be transmitted
         """
         strBuf = packet.toString() + "\r"
         self._serport.send(strBuf)
 
-   
+
     def setFreqChannel(self, value):
         """
         Set frequency channel for the wireless gateway
-        
+
         @param value: New frequency channel
         """
         # Check format
@@ -212,7 +213,7 @@ class SerialModem:
     def setSyncWord(self, value):
         """
         Set synchronization word for the wireless gateway
-        
+
         @param value: New synchronization word
         """
         # Check format
@@ -235,7 +236,7 @@ class SerialModem:
     def setDevAddress(self, value):
         """
         Set device address for the serial gateway
-        
+
         @param value: New device address
         """
         # Check format
@@ -253,11 +254,11 @@ class SerialModem:
             return True
         else:
             return False
-    
+
     def _waitForResponse(self, millis):
         """
         Wait a given amount of milliseconds for a response from the serial modem
-        
+
         @param millis: Amount of milliseconds to wait for a response
         """
         loops = millis / 10
@@ -269,10 +270,10 @@ class SerialModem:
         return True
 
 
-    def __init__(self, portname="/dev/ttyUSB0", speed=38400, verbose=False):
+    def __init__(self, portname="/dev/ttyUSB0", portfix=0, speed=38400, verbose=False):
         """
         Class constructor
-        
+
         @param portname: Name/path of the serial port
         @param speed: Serial baudrate in bps
         @param verbose: Print out SWAP traffic (True or False)
@@ -287,6 +288,8 @@ class SerialModem:
         self._ccpacket_received = None
         ## Name(path) of the serial port
         self.portname = portname
+        ## Portfix specifier for Name(path)
+        self.portfix = int(portfix)
         ## Speed of the serial port in bps
         self.portspeed = speed
         ## Hardware version of the serial modem
@@ -296,12 +299,13 @@ class SerialModem:
 
         try:
             # Open serial port
-            self._serport = SerialPort(self.portname, self.portspeed, verbose)
+            port_specifier = resolve_portname(self.portname, self.portfix)
+            self._serport = SerialPort(port_specifier, self.portspeed, verbose)
             # Define callback function for incoming serial packets
             self._serport.setRxCallback(self._serialPacketReceived)
             # Run serial port thread
             self._serport.start()
-               
+
             # This flags switches to True when the serial modem is ready
             self._wait_modem_start = False
             start = time.time()
@@ -318,40 +322,40 @@ class SerialModem:
             # Switch to command mode
             if not self.goToCommandMode():
                 raise SwapException("Modem is unable to enter command mode")
-    
+
             # Hardware version
             response = self.runAtCommand("ATHV?\r")
             if response is None:
                 raise SwapException("Unable to retrieve Hardware Version from serial modem")
             self.hwversion = long(response, 16)
-    
+
             # Firmware version
             response = self.runAtCommand("ATFV?\r")
             if response is None:
                 raise SwapException("Unable to retrieve Firmware Version from serial modem")
             self.fwversion = long(response, 16)
-    
+
             # Frequency channel
             response = self.runAtCommand("ATCH?\r")
             if response is None:
                 raise SwapException("Unable to retrieve Frequency Channel from serial modem")
             ## Frequency channel of the serial gateway
             self.freq_channel = int(response, 16)
-    
+
             # Synchronization word
             response = self.runAtCommand("ATSW?\r")
             if response is None:
                 raise SwapException("Unable to retrieve Synchronization Word from serial modem")
             ## Synchronization word of the serial gateway
             self.syncword = int(response, 16)
-    
+
             # Device address
             response = self.runAtCommand("ATDA?\r")
             if response is None:
                 raise SwapException("Unable to retrieve Device Address from serial modem")
             ## Device address of the serial gateway
             self.devaddress = int(response, 16)
-    
+
             # Switch to data mode
             self.goToDataMode()
         except:
